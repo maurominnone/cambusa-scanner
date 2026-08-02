@@ -13,13 +13,14 @@
   input, select, textarea { width:100%; padding:8px; box-sizing:border-box; font-size:16px; }
   button { padding:12px 20px; font-size:16px; border:none; border-radius:6px; background:#5b21b6; color:#fff; margin-top:8px; }
   #status { margin-top:10px; font-weight:bold; }
+  #hint { margin-top:6px; color:#555; font-size:14px; }
 </style>
 </head>
 <body>
 <h1>Cambusa condivisa - Scanner</h1>
 <button id="startBtn">Avvia scansione</button>
+<div id="hint" style="display:none;">Inquadra il codice a barre / QR entro il riquadro, tienilo fermo e a fuoco.</div>
 <video id="video" autoplay muted playsinline style="display:none;"></video>
-<canvas id="canvas" style="display:none;"></canvas>
 
 <form id="form">
   <div class="field">
@@ -50,45 +51,41 @@
 </form>
 <div id="status"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
 <script>
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzI8uw63x8Orcm7Y-t2pg2QR2cPamVKtPWCGzsVRh2LCat06BaRhFzPyWfAX9eM6vK2gw/exec";
 const startBtn = document.getElementById('startBtn');
 const video = document.getElementById('video');
-const canvas = document.getElementById('canvas');
+const hint = document.getElementById('hint');
 const barcodeInput = document.getElementById('barcode');
 const statusEl = document.getElementById('status');
-let stream;
+const codeReader = new ZXing.BrowserMultiFormatReader();
+let scanning = false;
 
 startBtn.addEventListener('click', async () => {
+  if (scanning) return;
+  scanning = true;
+  video.style.display = 'block';
+  hint.style.display = 'block';
+  statusEl.textContent = 'Scansione in corso...';
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-    video.srcObject = stream;
-    video.style.display = 'block';
-    await video.play();
-    const ctx = canvas.getContext('2d');
-    const scanLoop = () => {
-      if (!stream) return;
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        if (code) {
-          barcodeInput.value = code.data;
-          statusEl.textContent = 'Codice rilevato: ' + code.data;
-          stream.getTracks().forEach(t => t.stop());
-          video.style.display = 'none';
-          stream = null;
-          return;
-        }
+    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+    let deviceId = devices.length ? devices[devices.length - 1].deviceId : undefined;
+    codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
+      if (result) {
+        barcodeInput.value = result.getText();
+        statusEl.textContent = 'Codice rilevato: ' + result.getText();
+        codeReader.reset();
+        video.style.display = 'none';
+        hint.style.display = 'none';
+        scanning = false;
       }
-      requestAnimationFrame(scanLoop);
-    };
-    scanLoop();
+    });
   } catch (err) {
     alert('Errore accesso fotocamera: ' + err.message);
+    scanning = false;
+    video.style.display = 'none';
+    hint.style.display = 'none';
   }
 });
 
