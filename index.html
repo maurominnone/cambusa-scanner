@@ -59,6 +59,7 @@ const video = document.getElementById('video');
 const hint = document.getElementById('hint');
 const barcodeInput = document.getElementById('barcode');
 const statusEl = document.getElementById('status');
+const nomeInput = document.getElementById('nome');
 const form = document.getElementById('form');
 const iframe = document.querySelector('iframe[name="hidden_iframe"]');
 const codeReader = new ZXing.BrowserMultiFormatReader();
@@ -87,6 +88,7 @@ startBtn.addEventListener('click', async () => {
     codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
       if (result) {
         barcodeInput.value = result.getText();
+            lookupProduct(result.getText());
         statusEl.textContent = 'Codice rilevato: ' + result.getText();
         codeReader.reset();
         video.style.display = 'none';
@@ -114,7 +116,27 @@ iframe.addEventListener('load', () => {
   submitting = false;
   statusEl.textContent = 'Inviato con successo!';
   form.reset();
-  barcodeInput.value = '';
+    barcodeInput.value = '';
+  });
+  async function lookupProduct(barcode) {
+  if (!barcode) return;
+  statusEl.textContent = 'Ricerca prodotto...';
+  try {
+    const resp = await fetch('https://world.openfoodfacts.org/api/v2/product/' + encodeURIComponent(barcode) + '.json');
+    const data = await resp.json();
+    if (data && data.status === 1 && data.product) {
+      const name = data.product.product_name || data.product.product_name_it || data.product.generic_name || '';
+      if (name) {
+        nomeInput.value = name;
+        statusEl.textContent = 'Prodotto trovato: ' + name;
+        return;
+      }
+    }
+    statusEl.textContent = 'Prodotto non trovato, inserisci il nome manualmente.';
+  } catch (err) {
+    statusEl.textContent = 'Errore ricerca prodotto: ' + err.message;
+  }
+}
 });
 </script>
 </body>
