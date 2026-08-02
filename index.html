@@ -63,14 +63,24 @@ const codeReader = new ZXing.BrowserMultiFormatReader();
 let scanning = false;
 
 startBtn.addEventListener('click', async () => {
-  if (scanning) return;
+  if (scanning) {
+    codeReader.reset();
+    scanning = false;
+    video.style.display = 'none';
+    hint.style.display = 'none';
+    startBtn.textContent = 'Avvia scansione';
+    return;
+  }
   scanning = true;
+  startBtn.textContent = 'Ferma scansione';
   video.style.display = 'block';
   hint.style.display = 'block';
   statusEl.textContent = 'Scansione in corso...';
   try {
-    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-    let deviceId = devices.length ? devices[devices.length - 1].deviceId : undefined;
+    const devices = await codeReader.listVideoInputDevices();
+    if (!devices.length) throw new Error('Nessuna fotocamera trovata');
+    const backCam = devices.find(d => /back|rear|environment/i.test(d.label));
+    const deviceId = backCam ? backCam.deviceId : devices[devices.length - 1].deviceId;
     codeReader.decodeFromVideoDevice(deviceId, video, (result, err) => {
       if (result) {
         barcodeInput.value = result.getText();
@@ -79,11 +89,13 @@ startBtn.addEventListener('click', async () => {
         video.style.display = 'none';
         hint.style.display = 'none';
         scanning = false;
+        startBtn.textContent = 'Avvia scansione';
       }
     });
   } catch (err) {
     alert('Errore accesso fotocamera: ' + err.message);
     scanning = false;
+    startBtn.textContent = 'Avvia scansione';
     video.style.display = 'none';
     hint.style.display = 'none';
   }
