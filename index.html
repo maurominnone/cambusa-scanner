@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cambusa Scanner</title>
+<style>
+  body { font-family: sans-serif; margin: 0; padding: 16px; background:#f4f4f8; }
+  h1 { font-size: 20px; }
+  #video { width: 100%; max-width: 400px; border-radius: 8px; background:#000; }
+  .field { margin-bottom: 12px; }
+  label { display:block; font-weight:bold; margin-bottom:4px; }
+  input, select, textarea { width:100%; padding:8px; box-sizing:border-box; font-size:16px; }
+  button { padding:12px 20px; font-size:16px; border:none; border-radius:6px; background:#5b21b6; color:#fff; margin-top:8px; }
+  #status { margin-top:10px; font-weight:bold; }
+</style>
+</head>
+<body>
+<h1>Cambusa condivisa - Scanner</h1>
+<button id="startBtn">Avvia scansione</button>
+<video id="video" autoplay muted playsinline style="display:none;"></video>
+
+<form id="form">
+  <div class="field">
+    <label>Codice a barre</label>
+    <input type="text" id="barcode" placeholder="Scansiona o digita">
+  </div>
+  <div class="field">
+    <label>Nome prodotto</label>
+    <input type="text" id="nome">
+  </div>
+  <div class="field">
+    <label>Quantità</label>
+    <input type="number" id="quantita" value="1">
+  </div>
+  <div class="field">
+    <label>Famiglia</label>
+    <select id="famiglia">
+      <option value="Famiglia 1">Famiglia 1</option>
+      <option value="Famiglia 2">Famiglia 2</option>
+      <option value="Famiglia 3">Famiglia 3</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>Note (opzionale)</label>
+    <textarea id="note"></textarea>
+  </div>
+  <button type="submit">Invia</button>
+</form>
+<div id="status"></div>
+
+<script>
+const SCRIPT_URL = "INSERISCI_QUI_URL_APPS_SCRIPT";
+
+const startBtn = document.getElementById('startBtn');
+const video = document.getElementById('video');
+const barcodeInput = document.getElementById('barcode');
+const statusEl = document.getElementById('status');
+let stream;
+
+startBtn.addEventListener('click', async () => {
+  if (!('BarcodeDetector' in window)) {
+    alert('Il tuo browser non supporta la scansione automatica. Inserisci il codice manualmente.');
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = stream;
+    video.style.display = 'block';
+    const detector = new BarcodeDetector();
+    const scanLoop = async () => {
+      if (!stream) return;
+      try {
+        const barcodes = await detector.detect(video);
+        if (barcodes.length > 0) {
+          barcodeInput.value = barcodes[0].rawValue;
+          statusEl.textContent = 'Codice rilevato: ' + barcodes[0].rawValue;
+          stream.getTracks().forEach(t => t.stop());
+          video.style.display = 'none';
+          stream = null;
+          return;
+        }
+      } catch (e) {}
+      requestAnimationFrame(scanLoop);
+    };
+    scanLoop();
+  } catch (err) {
+    alert('Errore accesso fotocamera: ' + err.message);
+  }
+});
+
+document.getElementById('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = {
+    codice: barcodeInput.value,
+    nome: document.getElementById('nome').value,
+    quantita: document.getElementById('quantita').value,
+    famiglia: document.getElementById('famiglia').value,
+    note: document.getElementById('note').value
+  };
+  statusEl.textContent = 'Invio in corso...';
+  try {
+    await fetch(SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    statusEl.textContent = 'Inviato con successo!';
+    document.getElementById('form').reset();
+    barcodeInput.value = '';
+  } catch (err) {
+    statusEl.textContent = 'Errore invio: ' + err.message;
+  }
+});
+</script>
+</body>
+</html>
